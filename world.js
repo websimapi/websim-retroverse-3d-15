@@ -271,22 +271,29 @@ function initMobileControls() {
             
             if(dynamicContainer) dynamicContainer.style.display = 'block';
 
+            // When the joystick appears, it needs to be immediately activated
+            // by the touch that is already in progress.
             if (joystick && currentTouch) {
-                if (!joystick.nipples || joystick.nipples.length === 0) {
-                    return;
-                }
+                // NippleJS doesn't have a public API to manually start a touch sequence.
+                // However, we can access the first nipple instance and manually call
+                // its internal methods to simulate the start of a drag.
+                const nipple = joystick.get(0); // Use the documented get() method
                 
-                const nipple = joystick.nipples[0];
                 if (nipple) {
-                    // Manually trigger the nipple's internal start and move handlers
-                    // to make it instantly active and pointing in the correct direction.
-                    nipple.trigger('start', { 
-                        x: touchStartPosition.x, 
-                        y: touchStartPosition.y 
-                    });
-
-                    // Use the live 'currentTouch' object, which has been updated by touchmove.
-                    nipple.processOnMove(currentTouch);
+                    // Manually set the nipple's internal state.
+                    nipple.active = true;
+                    nipple.identifier = currentTouch.identifier;
+                    nipple.position = { x: currentTouch.pageX, y: currentTouch.pageY };
+                    nipple.frontPosition = { x: currentTouch.pageX, y: currentTouch.pageY };
+                    
+                    // Manually trigger the 'start' event with the nipple instance as context.
+                    // This informs our own listeners that the stick is active.
+                    joystick.trigger('start', nipple);
+                    
+                    // We also need to trigger an initial 'move' so the player starts moving
+                    // in the direction the finger has already dragged.
+                    nipple.computeDirection.call(nipple, { x: currentTouch.pageX, y: currentTouch.pageY });
+                    joystick.trigger('move', nipple);
                 }
             }
 
