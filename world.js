@@ -200,150 +200,113 @@ function onDocumentMouseDown(event) {
 function initMobileControls() {
     const joystickContainer = document.getElementById('joystick-container');
     if (joystickContainer) {
+        // This static container is no longer used for the dynamic joystick.
         joystickContainer.style.display = 'none';
     }
 
     let longPressTimer;
-    let joystick = null;
-    let dynamicContainer = null;
+    let joystickActive = false;
+    let joystickBase = null;
+    let joystickNub = null;
     let touchStartPosition = { x: 0, y: 0 };
     let currentTouch = null;
-    const LONG_PRESS_DURATION = 200;
+    const LONG_PRESS_DURATION = 200; // ms
+    const JOYSTICK_SIZE = 150; // pixels
+    const NUB_SIZE = 60; // pixels
 
     const onTouchMove = (event) => {
-        if (currentTouch) {
-            for (let i = 0; i < event.touches.length; i++) {
-                if (event.touches[i].identifier === currentTouch.identifier) {
-                    currentTouch = event.touches[i];
-                    break;
-                }
+        if (!currentTouch) return;
+
+        // Find the touch that we are tracking
+        let movedTouch = null;
+        for (let i = 0; i < event.touches.length; i++) {
+            if (event.touches[i].identifier === currentTouch.identifier) {
+                movedTouch = event.touches[i];
+                break;
+            }
+        }
+        if (!movedTouch) return;
+        currentTouch = movedTouch;
+
+        if (joystickActive && joystickBase) {
+            event.preventDefault(); // Prevent screen scrolling while using joystick
+
+            const deltaX = currentTouch.clientX - touchStartPosition.x;
+            const deltaY = currentTouch.clientY - touchStartPosition.y;
+            const distance = Math.hypot(deltaX, deltaY);
+            const angle = Math.atan2(deltaY, deltaX);
+
+            const maxDistance = (JOYSTICK_SIZE - NUB_SIZE) / 2;
+            const clampedDistance = Math.min(distance, maxDistance);
+
+            // Move the nub
+            const nubX = clampedDistance * Math.cos(angle);
+            const nubY = clampedDistance * Math.sin(angle);
+            joystickNub.style.transform = `translate(${nubX}px, ${nubY}px)`;
+            
+            // Update movement vector
+            if (movementEnabled) {
+                const force = clampedDistance / maxDistance;
+                // We use atan2's angle directly for movement vector.
+                // Note: angle for atan2 is different from nipplejs's radian.
+                // We need to adjust for the coordinate system.
+                joystickVector.x = force * Math.cos(angle);
+                joystickVector.y = force * Math.sin(angle);
             }
         }
     };
 
+    const createJoystickUI = () => {
+        joystickBase = document.createElement('div');
+        joystickBase.style.position = 'absolute';
+        joystickBase.style.left = `${touchStartPosition.x - JOYSTICK_SIZE / 2}px`;
+        joystickBase.style.top = `${touchStartPosition.y - JOYSTICK_SIZE / 2}px`;
+        joystickBase.style.width = `${JOYSTICK_SIZE}px`;
+        joystickBase.style.height = `${JOYSTICK_SIZE}px`;
+        joystickBase.style.background = 'rgba(0, 255, 0, 0.2)';
+        joystickBase.style.borderRadius = '50%';
+        joystickBase.style.zIndex = '1000';
+        
+        joystickNub = document.createElement('div');
+        joystickNub.style.position = 'absolute';
+        joystickNub.style.left = `${(JOYSTICK_SIZE - NUB_SIZE) / 2}px`;
+        joystickNub.style.top = `${(JOYSTICK_SIZE - NUB_SIZE) / 2}px`;
+        joystickNub.style.width = `${NUB_SIZE}px`;
+        joystickNub.style.height = `${NUB_SIZE}px`;
+        joystickNub.style.background = 'rgba(0, 255, 0, 0.5)';
+        joystickNub.style.borderRadius = '50%';
+
+        joystickBase.appendChild(joystickNub);
+        document.body.appendChild(joystickBase);
+    };
+    
+    const destroyJoystickUI = () => {
+        if (joystickBase && document.body.contains(joystickBase)) {
+            document.body.removeChild(joystickBase);
+        }
+        joystickBase = null;
+        joystickNub = null;
+    };
+
     renderer.domElement.addEventListener('touchstart', (event) => {
-        event.preventDefault();
+        // Only respond to the first touch
+        if (event.touches.length > 1 || joystickActive) return;
+
         currentTouch = event.touches[0];
         touchStartPosition.x = currentTouch.clientX;
         touchStartPosition.y = currentTouch.clientY;
 
         renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
-
-        dynamicContainer = document.createElement('div');
-        dynamicContainer.id = 'dynamic-joystick';
-        dynamicContainer.style.position = 'absolute';
-        dynamicContainer.style.left = `${currentTouch.clientX - 75}px`;
-        dynamicContainer.style.top = `${currentTouch.clientY - 75}px`;
-        dynamicContainer.style.width = '150px';
-        dynamicContainer.style.height = '150px';
-        dynamicContainer.style.zIndex = '1000';
-        dynamicContainer.style.display = 'none';
-        document.body.appendChild(dynamicContainer);
-
-        const options = {
-            zone: dynamicContainer,
-            mode: 'static',
-            position: { left: '50%', top: '50%' },
-            color: '#00ff00',
-            size: 150,
-            restJoystick: true,
-        };
-        joystick = nipplejs.create(options);
         
-        joystick.on('move', (evt, data) => {
-            if (!movementEnabled || !data.angle) return;
-            const angle = data.angle.radian;
-            const force = Math.min(data.force, 1.0);
-            joystickVector.x = Math.cos(angle) * force;
-            joystickVector.y = Math.sin(angle) * force;
-        });
-
-        joystick.on('end', () => {
-            joystickVector.set(0, 0);
-        });
-
         longPressTimer = setTimeout(() => {
-            longPressTimer = null;
-            
-            if(dynamicContainer) dynamicContainer.style.display = 'block';
+            longPressTimer = null; // Timer has fired
+            joystickActive = true;
+            createJoystickUI();
 
-            // Simulate a touch event on the joystick to activate it with the current touch
-            if (joystick && currentTouch && dynamicContainer) {
-                // Create synthetic touch events to trigger the joystick
-                const rect = dynamicContainer.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
-                
-                // Dispatch a touchstart event on the container
-                const touchStartEvent = new TouchEvent('touchstart', {
-                    bubbles: true,
-                    cancelable: true,
-                    touches: [{
-                        identifier: currentTouch.identifier,
-                        pageX: currentTouch.pageX,
-                        pageY: currentTouch.pageY,
-                        clientX: currentTouch.clientX,
-                        clientY: currentTouch.clientY,
-                        target: dynamicContainer
-                    }],
-                    targetTouches: [{
-                        identifier: currentTouch.identifier,
-                        pageX: currentTouch.pageX,
-                        pageY: currentTouch.pageY,
-                        clientX: currentTouch.clientX,
-                        clientY: currentTouch.clientY,
-                        target: dynamicContainer
-                    }],
-                    changedTouches: [{
-                        identifier: currentTouch.identifier,
-                        pageX: currentTouch.pageX,
-                        pageY: currentTouch.pageY,
-                        clientX: currentTouch.clientX,
-                        clientY: currentTouch.clientY,
-                        target: dynamicContainer
-                    }]
-                });
-                
-                dynamicContainer.dispatchEvent(touchStartEvent);
-                
-                // If finger has moved, dispatch a touchmove as well
-                if (Math.abs(currentTouch.clientX - touchStartPosition.x) > 5 || 
-                    Math.abs(currentTouch.clientY - touchStartPosition.y) > 5) {
-                    const touchMoveEvent = new TouchEvent('touchmove', {
-                        bubbles: true,
-                        cancelable: true,
-                        touches: [{
-                            identifier: currentTouch.identifier,
-                            pageX: currentTouch.pageX,
-                            pageY: currentTouch.pageY,
-                            clientX: currentTouch.clientX,
-                            clientY: currentTouch.clientY,
-                            target: dynamicContainer
-                        }],
-                        targetTouches: [{
-                            identifier: currentTouch.identifier,
-                            pageX: currentTouch.pageX,
-                            pageY: currentTouch.pageY,
-                            clientX: currentTouch.clientX,
-                            clientY: currentTouch.clientY,
-                            target: dynamicContainer
-                        }],
-                        changedTouches: [{
-                            identifier: currentTouch.identifier,
-                            pageX: currentTouch.pageX,
-                            pageY: currentTouch.pageY,
-                            clientX: currentTouch.clientX,
-                            clientY: currentTouch.clientY,
-                            target: dynamicContainer
-                        }]
-                    });
-                    
-                    dynamicContainer.dispatchEvent(touchMoveEvent);
-                }
-            }
-
+            // Manually trigger the first move event to make it responsive immediately
+            onTouchMove({ touches: [currentTouch], preventDefault: () => {} });
         }, LONG_PRESS_DURATION);
-    }, { passive: false });
+    }, { passive: true });
 
     const endTouch = (event) => {
         // Stop listening to move events for this touch session
@@ -362,16 +325,11 @@ function initMobileControls() {
             }
         }
 
-        // Cleanup joystick regardless of tap type
-        if (joystick) {
-            joystick.destroy();
-            joystick = null;
-        }
-        if (dynamicContainer) {
-            if (document.body.contains(dynamicContainer)) {
-                document.body.removeChild(dynamicContainer);
-            }
-            dynamicContainer = null;
+        // Cleanup joystick if it was active
+        if (joystickActive) {
+            joystickActive = false;
+            joystickVector.set(0, 0);
+            destroyJoystickUI();
         }
         currentTouch = null; // Reset the active touch
     };
@@ -421,7 +379,7 @@ export function initWorld(canvas) {
         initMobileControls();
     } else {
         // Use mousedown for click-to-move, not mousemove.
-        renderer.domElement.addEventListener('mousedown', onDocumentMouseDown, false);
+        renderer.domElement.addEventListener('mousemove', onDocumentMouseDown, false);
     }
 
     // Post-processing
@@ -452,9 +410,10 @@ function animate() {
 
     if (movementEnabled) {
         // Handle joystick movement
-        if (joystickVector.length() > 0.1) {
+        if (joystickVector.length() > 0.01) { // Use a smaller threshold
+            // Invert Y for world Z, and since Y from touch is downwards, we need to adjust
             player.position.x += joystickVector.x * moveSpeed * delta;
-            player.position.z -= joystickVector.y * moveSpeed * delta; // Invert Y for world Z
+            player.position.z += joystickVector.y * moveSpeed * delta; 
             targetPosition.copy(player.position); // Sync target to prevent click-move interference
             updateChunks();
         }
