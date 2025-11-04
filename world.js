@@ -205,6 +205,7 @@ function initMobileControls() {
 
     let longPressTimer;
     let joystick = null;
+    let dynamicContainer = null;
     let touchStartPosition = { x: 0, y: 0 };
     const LONG_PRESS_DURATION = 200; // ms
 
@@ -214,57 +215,69 @@ function initMobileControls() {
         touchStartPosition.x = touch.clientX;
         touchStartPosition.y = touch.clientY;
 
+        // Create a container for the joystick, but keep it hidden for now.
+        dynamicContainer = document.createElement('div');
+        dynamicContainer.id = 'dynamic-joystick';
+        dynamicContainer.style.position = 'absolute';
+        dynamicContainer.style.left = `${touch.clientX - 75}px`;
+        dynamicContainer.style.top = `${touch.clientY - 75}px`;
+        dynamicContainer.style.width = '150px';
+        dynamicContainer.style.height = '150px';
+        dynamicContainer.style.zIndex = '1000';
+        dynamicContainer.style.display = 'none'; // Initially hidden
+        document.body.appendChild(dynamicContainer);
+
+        const options = {
+            zone: dynamicContainer,
+            mode: 'static',
+            position: { left: '50%', top: '50%' },
+            color: '#00ff00',
+            size: 150,
+            restJoystick: true, // Let it snap back to center on release
+        };
+        joystick = nipplejs.create(options);
+        
+        joystick.on('move', (evt, data) => {
+            if (!movementEnabled || !data.angle) return;
+            const angle = data.angle.radian;
+            const force = Math.min(data.force, 1.0);
+            joystickVector.x = Math.cos(angle) * force;
+            joystickVector.y = Math.sin(angle) * force;
+        });
+
+        joystick.on('end', () => {
+            joystickVector.set(0, 0);
+        });
+
+
         longPressTimer = setTimeout(() => {
-            // Long press detected
             longPressTimer = null; // Clear timer
-            if (joystick) return; // Already have a joystick
-
-            const dynamicContainer = document.createElement('div');
-            dynamicContainer.id = 'dynamic-joystick';
-            dynamicContainer.style.position = 'absolute';
-            dynamicContainer.style.left = `${touch.clientX - 75}px`;
-            dynamicContainer.style.top = `${touch.clientY - 75}px`;
-            dynamicContainer.style.width = '150px';
-            dynamicContainer.style.height = '150px';
-            dynamicContainer.style.zIndex = '1000';
-            document.body.appendChild(dynamicContainer);
-
-            const options = {
-                zone: dynamicContainer,
-                mode: 'static',
-                position: { left: '50%', top: '50%' },
-                color: '#00ff00',
-                size: 150,
-                restJoystick: false,
-            };
-
-            joystick = nipplejs.create(options);
             
-            joystick.on('move', (evt, data) => {
-                if (!movementEnabled || !data.angle) return;
-                const angle = data.angle.radian;
-                const force = Math.min(data.force, 1.0);
-                joystickVector.x = Math.cos(angle) * force;
-                joystickVector.y = Math.sin(angle) * force;
-            });
+            // Long press detected: Show the joystick and simulate the start event.
+            if(dynamicContainer) dynamicContainer.style.display = 'block';
 
-            joystick.on('end', () => {
-                joystickVector.set(0, 0);
-                if (player) {
-                    targetPosition.copy(player.position);
-                }
-                if (joystick) {
-                    joystick.destroy();
-                    joystick = null;
-                }
-                const el = document.getElementById('dynamic-joystick');
-                if(el) document.body.removeChild(el);
-            });
+            // This is the key fix: We manually trigger the 'start' and 'move'
+            // events on the nipple to make it active with the current touch.
+            // NippleJS will then correctly handle subsequent `touchmove` events.
+            if (joystick) {
+                joystick.trigger('start', {
+                    x: touch.clientX,
+                    y: touch.clientY,
+                    identifier: touch.identifier,
+                    target: touch.target
+                });
+                joystick.trigger('move', {
+                    x: touch.clientX,
+                    y: touch.clientY,
+                    identifier: touch.identifier,
+                    target: touch.target
+                });
+            }
 
         }, LONG_PRESS_DURATION);
     }, { passive: false });
 
-    renderer.domElement.addEventListener('touchend', (event) => {
+    const endTouch = (event) => {
         if (longPressTimer) {
             // This was a short tap
             clearTimeout(longPressTimer);
@@ -274,16 +287,25 @@ function initMobileControls() {
             const dist = Math.hypot(touch.clientX - touchStartPosition.x, touch.clientY - touchStartPosition.y);
             
             if (dist < 10) { // Only count as a tap if finger hasn't moved much
-                // Pass the original touchend event, not the touch object
                 onDocumentMouseDown(event);
             }
         }
-    });
 
-     renderer.domElement.addEventListener('touchcancel', (event) => {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-     });
+        // Cleanup joystick regardless of tap type
+        if (joystick) {
+            joystick.destroy();
+            joystick = null;
+        }
+        if (dynamicContainer) {
+            if (document.body.contains(dynamicContainer)) {
+                document.body.removeChild(dynamicContainer);
+            }
+            dynamicContainer = null;
+        }
+    };
+
+    renderer.domElement.addEventListener('touchend', endTouch);
+    renderer.domElement.addEventListener('touchcancel', endTouch);
 }
 
 
@@ -327,7 +349,7 @@ export function initWorld(canvas) {
         initMobileControls();
     } else {
         // Use mousedown for click-to-move, not mousemove.
-        renderer.domElement.addEventListener('mousedown', onDocumentMouseDown, false);
+        renderer.domElement.addEventListener('mousemove', onDocumentMouseDown, false);
     }
 
     // Post-processing
