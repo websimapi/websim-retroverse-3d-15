@@ -207,20 +207,36 @@ function initMobileControls() {
     let joystick = null;
     let dynamicContainer = null;
     let touchStartPosition = { x: 0, y: 0 };
+    let currentTouch = null; // Store the active touch object
     const LONG_PRESS_DURATION = 200; // ms
+
+    const onTouchMove = (event) => {
+        // Find and update the current touch based on its identifier
+        if (currentTouch) {
+            for (let i = 0; i < event.touches.length; i++) {
+                if (event.touches[i].identifier === currentTouch.identifier) {
+                    currentTouch = event.touches[i];
+                    break;
+                }
+            }
+        }
+    };
 
     renderer.domElement.addEventListener('touchstart', (event) => {
         event.preventDefault();
-        const touch = event.touches[0];
-        touchStartPosition.x = touch.clientX;
-        touchStartPosition.y = touch.clientY;
+        currentTouch = event.touches[0];
+        touchStartPosition.x = currentTouch.clientX;
+        touchStartPosition.y = currentTouch.clientY;
+
+        // Listen for movement while the timer is active
+        renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
 
         // Create a container for the joystick, but keep it hidden for now.
         dynamicContainer = document.createElement('div');
         dynamicContainer.id = 'dynamic-joystick';
         dynamicContainer.style.position = 'absolute';
-        dynamicContainer.style.left = `${touch.clientX - 75}px`;
-        dynamicContainer.style.top = `${touch.clientY - 75}px`;
+        dynamicContainer.style.left = `${currentTouch.clientX - 75}px`;
+        dynamicContainer.style.top = `${currentTouch.clientY - 75}px`;
         dynamicContainer.style.width = '150px';
         dynamicContainer.style.height = '150px';
         dynamicContainer.style.zIndex = '1000';
@@ -233,7 +249,7 @@ function initMobileControls() {
             position: { left: '50%', top: '50%' },
             color: '#00ff00',
             size: 150,
-            restJoystick: true, // Let it snap back to center on release
+            restJoystick: true,
         };
         joystick = nipplejs.create(options);
         
@@ -253,41 +269,24 @@ function initMobileControls() {
         longPressTimer = setTimeout(() => {
             longPressTimer = null; // Clear timer
             
-            // Long press detected: Show the joystick and simulate the start event.
             if(dynamicContainer) dynamicContainer.style.display = 'block';
 
-            // This is the key fix: We manually trigger the 'start' and 'move'
-            // events on the nipple to make it active with the current touch.
-            // NippleJS will then correctly handle subsequent `touchmove` events.
-            if (joystick) {
-                // The public API doesn't expose `emit`. We need to access the internal
-                // nipple instance to manually trigger its internal event handlers.
-                // This is a workaround, but it achieves the desired UX.
-                
-                // Add a guard clause to ensure the nipple exists before proceeding.
-                // It's possible the touchend event destroyed it before this timer fired.
+            if (joystick && currentTouch) {
                 if (!joystick.nipples || joystick.nipples.length === 0) {
                     return;
                 }
                 
                 const nipple = joystick.nipples[0];
                 if (nipple) {
-                    // We simulate a 'touchstart' on the nipple itself.
-                    // The nipple's internal position might not be ready, but we know the center
-                    // should be exactly where the user's finger started the long press.
+                    // Manually trigger the nipple's internal start and move handlers
+                    // to make it instantly active and pointing in the correct direction.
                     nipple.trigger('start', { 
                         x: touchStartPosition.x, 
                         y: touchStartPosition.y 
                     });
 
-                    // We then immediately simulate a 'touchmove' to the current finger position.
-                    // The `processOnMove` function is the internal handler for move events.
-                    nipple.processOnMove({
-                        x: touch.clientX,
-                        y: touch.clientY,
-                        identifier: touch.identifier,
-                        target: touch.target
-                    });
+                    // Use the live 'currentTouch' object, which has been updated by touchmove.
+                    nipple.processOnMove(currentTouch);
                 }
             }
 
@@ -295,6 +294,9 @@ function initMobileControls() {
     }, { passive: false });
 
     const endTouch = (event) => {
+        // Stop listening to move events for this touch session
+        renderer.domElement.removeEventListener('touchmove', onTouchMove);
+
         if (longPressTimer) {
             // This was a short tap
             clearTimeout(longPressTimer);
@@ -319,6 +321,7 @@ function initMobileControls() {
             }
             dynamicContainer = null;
         }
+        currentTouch = null; // Reset the active touch
     };
 
     renderer.domElement.addEventListener('touchend', endTouch);
