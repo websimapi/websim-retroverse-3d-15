@@ -288,12 +288,12 @@ function initMobileControls() {
                     
                     // Manually trigger the 'start' event with the nipple instance as context.
                     // This informs our own listeners that the stick is active.
-                    joystick.emit('start', nipple);
+                    nipple.emit('start', nipple);
                     
                     // We also need to trigger an initial 'move' so the player starts moving
                     // in the direction the finger has already dragged.
                     nipple.computeDirection.call(nipple, { x: currentTouch.pageX, y: currentTouch.pageY });
-                    joystick.emit('move', nipple);
+                    nipple.emit('move', nipple);
                 }
             }
 
