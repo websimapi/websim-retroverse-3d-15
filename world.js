@@ -161,11 +161,31 @@ function updateChunks() {
 
 
 function onDocumentMouseDown(event) {
-    event.preventDefault();
+    // This function can be called by both mouse and touch events.
+    // We need to prevent default behavior like text selection or page scrolling.
+    if (event.preventDefault) {
+        event.preventDefault();
+    }
+
     if (!movementEnabled) return;
 
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+    // Determine the correct coordinates from either a mouse or touch event.
+    let clientX, clientY;
+    if (event.clientX !== undefined) {
+        // Mouse event
+        clientX = event.clientX;
+        clientY = event.clientY;
+    } else if (event.changedTouches && event.changedTouches.length > 0) {
+        // Touch event
+        clientX = event.changedTouches[0].clientX;
+        clientY = event.changedTouches[0].clientY;
+    } else {
+        // Not a valid event for our purposes
+        return;
+    }
+
+    mouse.x = (clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
 
@@ -254,7 +274,8 @@ function initMobileControls() {
             const dist = Math.hypot(touch.clientX - touchStartPosition.x, touch.clientY - touchStartPosition.y);
             
             if (dist < 10) { // Only count as a tap if finger hasn't moved much
-                onDocumentMouseDown(touch);
+                // Pass the original touchend event, not the touch object
+                onDocumentMouseDown(event);
             }
         }
     });
@@ -305,7 +326,8 @@ export function initWorld(canvas) {
     if (isMobile) {
         initMobileControls();
     } else {
-        renderer.domElement.addEventListener('mousemove', onDocumentMouseDown, false);
+        // Use mousedown for click-to-move, not mousemove.
+        renderer.domElement.addEventListener('mousedown', onDocumentMouseDown, false);
     }
 
     // Post-processing
