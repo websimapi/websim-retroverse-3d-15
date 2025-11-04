@@ -179,34 +179,90 @@ function onDocumentMouseDown(event) {
 
 function initMobileControls() {
     const joystickContainer = document.getElementById('joystick-container');
-    if (!joystickContainer) return;
+    if (joystickContainer) {
+        joystickContainer.style.display = 'none'; // Ensure the static container is hidden
+    }
 
-    joystickContainer.style.display = 'block';
+    let longPressTimer;
+    let joystick = null;
+    let touchStartPosition = { x: 0, y: 0 };
+    const LONG_PRESS_DURATION = 200; // ms
 
-    const options = {
-        zone: joystickContainer,
-        mode: 'static',
-        position: { left: '50%', top: '50%' },
-        color: '#00ff00',
-        size: 100
-    };
+    renderer.domElement.addEventListener('touchstart', (event) => {
+        event.preventDefault();
+        const touch = event.touches[0];
+        touchStartPosition.x = touch.clientX;
+        touchStartPosition.y = touch.clientY;
 
-    const joystick = nipplejs.create(options);
+        longPressTimer = setTimeout(() => {
+            // Long press detected
+            longPressTimer = null; // Clear timer
+            if (joystick) return; // Already have a joystick
 
-    joystick.on('move', (evt, data) => {
-        if (!data.angle) return;
-        const angle = data.angle.radian;
-        const force = Math.min(data.force, 1.0); // Clamp force to max 1
-        joystickVector.x = Math.cos(angle) * force;
-        joystickVector.y = Math.sin(angle) * force;
-    });
+            const dynamicContainer = document.createElement('div');
+            dynamicContainer.id = 'dynamic-joystick';
+            dynamicContainer.style.position = 'absolute';
+            dynamicContainer.style.left = `${touch.clientX - 75}px`;
+            dynamicContainer.style.top = `${touch.clientY - 75}px`;
+            dynamicContainer.style.width = '150px';
+            dynamicContainer.style.height = '150px';
+            dynamicContainer.style.zIndex = '1000';
+            document.body.appendChild(dynamicContainer);
 
-    joystick.on('end', () => {
-        joystickVector.set(0, 0);
-        if (player) {
-            targetPosition.copy(player.position);
+            const options = {
+                zone: dynamicContainer,
+                mode: 'static',
+                position: { left: '50%', top: '50%' },
+                color: '#00ff00',
+                size: 150,
+                restJoystick: false,
+            };
+
+            joystick = nipplejs.create(options);
+            
+            joystick.on('move', (evt, data) => {
+                if (!movementEnabled || !data.angle) return;
+                const angle = data.angle.radian;
+                const force = Math.min(data.force, 1.0);
+                joystickVector.x = Math.cos(angle) * force;
+                joystickVector.y = Math.sin(angle) * force;
+            });
+
+            joystick.on('end', () => {
+                joystickVector.set(0, 0);
+                if (player) {
+                    targetPosition.copy(player.position);
+                }
+                if (joystick) {
+                    joystick.destroy();
+                    joystick = null;
+                }
+                const el = document.getElementById('dynamic-joystick');
+                if(el) document.body.removeChild(el);
+            });
+
+        }, LONG_PRESS_DURATION);
+    }, { passive: false });
+
+    renderer.domElement.addEventListener('touchend', (event) => {
+        if (longPressTimer) {
+            // This was a short tap
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            
+            const touch = event.changedTouches[0];
+            const dist = Math.hypot(touch.clientX - touchStartPosition.x, touch.clientY - touchStartPosition.y);
+            
+            if (dist < 10) { // Only count as a tap if finger hasn't moved much
+                onDocumentMouseDown(touch);
+            }
         }
     });
+
+     renderer.domElement.addEventListener('touchcancel', (event) => {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+     });
 }
 
 
@@ -249,7 +305,7 @@ export function initWorld(canvas) {
     if (isMobile) {
         initMobileControls();
     } else {
-        renderer.domElement.addEventListener('mousedown', onDocumentMouseDown, false);
+        renderer.domElement.addEventListener('mousemove', onDocumentMouseDown, false);
     }
 
     // Post-processing

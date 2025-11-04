@@ -12,12 +12,22 @@ const uiToggleBtn = document.getElementById('ui-toggle-btn');
 const chatMessagesEl = document.getElementById('chat-messages');
 const chatFormEl = document.getElementById('chat-form');
 const chatInputEl = document.getElementById('chat-input');
+const chatContainerEl = document.getElementById('chat-container');
+const chatToggleBtn = document.getElementById('chat-toggle-btn');
 
 function toggleUI() {
     if (uiContainerEl.style.display === 'block') {
         uiContainerEl.style.display = 'none';
     } else {
         uiContainerEl.style.display = 'block';
+    }
+}
+
+function toggleChat() {
+    if (chatContainerEl.style.display === 'flex') {
+        chatContainerEl.style.display = 'none';
+    } else {
+        chatContainerEl.style.display = 'flex';
     }
 }
 
@@ -114,6 +124,7 @@ async function main() {
         }
 
         uiToggleBtn.addEventListener('click', toggleUI);
+        chatToggleBtn.addEventListener('click', toggleChat);
         window.addEventListener('keydown', (event) => {
             if (event.key === '`' || event.key === '~') {
                 toggleUI();
