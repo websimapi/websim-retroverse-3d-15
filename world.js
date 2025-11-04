@@ -200,18 +200,17 @@ function onDocumentMouseDown(event) {
 function initMobileControls() {
     const joystickContainer = document.getElementById('joystick-container');
     if (joystickContainer) {
-        joystickContainer.style.display = 'none'; // Ensure the static container is hidden
+        joystickContainer.style.display = 'none';
     }
 
     let longPressTimer;
     let joystick = null;
     let dynamicContainer = null;
     let touchStartPosition = { x: 0, y: 0 };
-    let currentTouch = null; // Store the active touch object
-    const LONG_PRESS_DURATION = 200; // ms
+    let currentTouch = null;
+    const LONG_PRESS_DURATION = 200;
 
     const onTouchMove = (event) => {
-        // Find and update the current touch based on its identifier
         if (currentTouch) {
             for (let i = 0; i < event.touches.length; i++) {
                 if (event.touches[i].identifier === currentTouch.identifier) {
@@ -228,10 +227,8 @@ function initMobileControls() {
         touchStartPosition.x = currentTouch.clientX;
         touchStartPosition.y = currentTouch.clientY;
 
-        // Listen for movement while the timer is active
         renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
 
-        // Create a container for the joystick, but keep it hidden for now.
         dynamicContainer = document.createElement('div');
         dynamicContainer.id = 'dynamic-joystick';
         dynamicContainer.style.position = 'absolute';
@@ -240,7 +237,7 @@ function initMobileControls() {
         dynamicContainer.style.width = '150px';
         dynamicContainer.style.height = '150px';
         dynamicContainer.style.zIndex = '1000';
-        dynamicContainer.style.display = 'none'; // Initially hidden
+        dynamicContainer.style.display = 'none';
         document.body.appendChild(dynamicContainer);
 
         const options = {
@@ -265,35 +262,83 @@ function initMobileControls() {
             joystickVector.set(0, 0);
         });
 
-
         longPressTimer = setTimeout(() => {
-            longPressTimer = null; // Clear timer
+            longPressTimer = null;
             
             if(dynamicContainer) dynamicContainer.style.display = 'block';
 
-            // When the joystick appears, it needs to be immediately activated
-            // by the touch that is already in progress.
-            if (joystick && currentTouch) {
-                // NippleJS doesn't have a public API to manually start a touch sequence.
-                // However, we can access the first nipple instance and manually call
-                // its internal methods to simulate the start of a drag.
-                const nipple = joystick.get(0); // Use the documented get() method
+            // Simulate a touch event on the joystick to activate it with the current touch
+            if (joystick && currentTouch && dynamicContainer) {
+                // Create synthetic touch events to trigger the joystick
+                const rect = dynamicContainer.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
                 
-                if (nipple) {
-                    // Manually set the nipple's internal state.
-                    nipple.active = true;
-                    nipple.identifier = currentTouch.identifier;
-                    nipple.position = { x: currentTouch.pageX, y: currentTouch.pageY };
-                    nipple.frontPosition = { x: currentTouch.pageX, y: currentTouch.pageY };
+                // Dispatch a touchstart event on the container
+                const touchStartEvent = new TouchEvent('touchstart', {
+                    bubbles: true,
+                    cancelable: true,
+                    touches: [{
+                        identifier: currentTouch.identifier,
+                        pageX: currentTouch.pageX,
+                        pageY: currentTouch.pageY,
+                        clientX: currentTouch.clientX,
+                        clientY: currentTouch.clientY,
+                        target: dynamicContainer
+                    }],
+                    targetTouches: [{
+                        identifier: currentTouch.identifier,
+                        pageX: currentTouch.pageX,
+                        pageY: currentTouch.pageY,
+                        clientX: currentTouch.clientX,
+                        clientY: currentTouch.clientY,
+                        target: dynamicContainer
+                    }],
+                    changedTouches: [{
+                        identifier: currentTouch.identifier,
+                        pageX: currentTouch.pageX,
+                        pageY: currentTouch.pageY,
+                        clientX: currentTouch.clientX,
+                        clientY: currentTouch.clientY,
+                        target: dynamicContainer
+                    }]
+                });
+                
+                dynamicContainer.dispatchEvent(touchStartEvent);
+                
+                // If finger has moved, dispatch a touchmove as well
+                if (Math.abs(currentTouch.clientX - touchStartPosition.x) > 5 || 
+                    Math.abs(currentTouch.clientY - touchStartPosition.y) > 5) {
+                    const touchMoveEvent = new TouchEvent('touchmove', {
+                        bubbles: true,
+                        cancelable: true,
+                        touches: [{
+                            identifier: currentTouch.identifier,
+                            pageX: currentTouch.pageX,
+                            pageY: currentTouch.pageY,
+                            clientX: currentTouch.clientX,
+                            clientY: currentTouch.clientY,
+                            target: dynamicContainer
+                        }],
+                        targetTouches: [{
+                            identifier: currentTouch.identifier,
+                            pageX: currentTouch.pageX,
+                            pageY: currentTouch.pageY,
+                            clientX: currentTouch.clientX,
+                            clientY: currentTouch.clientY,
+                            target: dynamicContainer
+                        }],
+                        changedTouches: [{
+                            identifier: currentTouch.identifier,
+                            pageX: currentTouch.pageX,
+                            pageY: currentTouch.pageY,
+                            clientX: currentTouch.clientX,
+                            clientY: currentTouch.clientY,
+                            target: dynamicContainer
+                        }]
+                    });
                     
-                    // Manually trigger the 'start' event with the nipple instance as context.
-                    // This informs our own listeners that the stick is active.
-                    nipple.emit('start', nipple);
-                    
-                    // We also need to trigger an initial 'move' so the player starts moving
-                    // in the direction the finger has already dragged.
-                    nipple.computeDirection.call(nipple, { x: currentTouch.pageX, y: currentTouch.pageY });
-                    nipple.emit('move', nipple);
+                    dynamicContainer.dispatchEvent(touchMoveEvent);
                 }
             }
 
