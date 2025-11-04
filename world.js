@@ -288,12 +288,12 @@ function initMobileControls() {
                     
                     // Manually trigger the 'start' event with the nipple instance as context.
                     // This informs our own listeners that the stick is active.
-                    joystick.trigger('start', nipple);
+                    joystick.emit('start', nipple);
                     
                     // We also need to trigger an initial 'move' so the player starts moving
                     // in the direction the finger has already dragged.
                     nipple.computeDirection.call(nipple, { x: currentTouch.pageX, y: currentTouch.pageY });
-                    joystick.trigger('move', nipple);
+                    joystick.emit('move', nipple);
                 }
             }
 
@@ -376,7 +376,7 @@ export function initWorld(canvas) {
         initMobileControls();
     } else {
         // Use mousedown for click-to-move, not mousemove.
-        renderer.domElement.addEventListener('mousemove', onDocumentMouseDown, false);
+        renderer.domElement.addEventListener('mousedown', onDocumentMouseDown, false);
     }
 
     // Post-processing
