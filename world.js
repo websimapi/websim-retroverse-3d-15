@@ -266,9 +266,11 @@ function initMobileControls() {
                 const nipple = joystick.nipples[0];
                 if (nipple) {
                     // We simulate a 'touchstart' on the nipple itself.
+                    // The nipple's internal position might not be ready, but we know the center
+                    // should be exactly where the user's finger started the long press.
                     nipple.trigger('start', { 
-                        x: nipple.position.x, 
-                        y: nipple.position.y 
+                        x: touchStartPosition.x, 
+                        y: touchStartPosition.y 
                     });
 
                     // We then immediately simulate a 'touchmove' to the current finger position.
