@@ -263,6 +263,13 @@ function initMobileControls() {
                 // The public API doesn't expose `emit`. We need to access the internal
                 // nipple instance to manually trigger its internal event handlers.
                 // This is a workaround, but it achieves the desired UX.
+                
+                // Add a guard clause to ensure the nipple exists before proceeding.
+                // It's possible the touchend event destroyed it before this timer fired.
+                if (!joystick.nipples || joystick.nipples.length === 0) {
+                    return;
+                }
+                
                 const nipple = joystick.nipples[0];
                 if (nipple) {
                     // We simulate a 'touchstart' on the nipple itself.
