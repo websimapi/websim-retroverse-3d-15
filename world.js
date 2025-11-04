@@ -260,17 +260,26 @@ function initMobileControls() {
             // events on the nipple to make it active with the current touch.
             // NippleJS will then correctly handle subsequent `touchmove` events.
             if (joystick) {
-                // NippleJS uses `emit`, not `trigger`. The event name is first, then the data.
-                // The library doesn't expose a public way to do this, so this is a workaround
-                // that simulates the internal event flow. The second argument is the raw touch event.
-                const simulatedTouchEvent = {
-                    x: touch.clientX,
-                    y: touch.clientY,
-                    identifier: touch.identifier,
-                    target: touch.target
-                };
-                joystick.emit('start', simulatedTouchEvent);
-                joystick.emit('move', simulatedTouchEvent);
+                // The public API doesn't expose `emit`. We need to access the internal
+                // nipple instance to manually trigger its internal event handlers.
+                // This is a workaround, but it achieves the desired UX.
+                const nipple = joystick.nipples[0];
+                if (nipple) {
+                    // We simulate a 'touchstart' on the nipple itself.
+                    nipple.trigger('start', { 
+                        x: nipple.position.x, 
+                        y: nipple.position.y 
+                    });
+
+                    // We then immediately simulate a 'touchmove' to the current finger position.
+                    // The `processOnMove` function is the internal handler for move events.
+                    nipple.processOnMove({
+                        x: touch.clientX,
+                        y: touch.clientY,
+                        identifier: touch.identifier,
+                        target: touch.target
+                    });
+                }
             }
 
         }, LONG_PRESS_DURATION);
