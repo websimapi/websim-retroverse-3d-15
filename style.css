@@ -14,6 +14,21 @@ canvas#bg {
     outline: none;
 }
 
+#ui-toggle-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(13, 13, 13, 0.7);
+    border: 1px solid #00ff00;
+    color: #00ff00;
+    padding: 5px 10px;
+    font-family: 'Courier New', Courier, monospace;
+    cursor: pointer;
+    z-index: 101; /* Above ui-container */
+    font-size: 24px;
+    border-radius: 5px;
+}
+
 #ui-container {
     position: absolute;
     top: 10px;
@@ -22,6 +37,7 @@ canvas#bg {
     padding: 10px;
     border: 1px solid #00ff00;
     display: none; /* Hidden by default, toggled by host */
+    z-index: 100;
 }
 
 h1 {
@@ -157,26 +173,33 @@ h1 {
 /* Mobile Responsiveness */
 @media (max-width: 600px) {
     #ui-container {
-        top: 5px;
-        left: 5px;
-        right: 5px;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         width: auto;
         font-size: 14px;
+        overflow-y: auto; /* Allow scrolling on small screens */
     }
 
     h1 {
         font-size: 1.5em;
+        margin-top: 50px; /* Space for the toggle button */
     }
 
     #chat-container {
-        left: 5%;
-        right: 5%;
-        width: 90%;
-        bottom: 5px;
+        left: 0;
+        right: 0;
+        width: 100%;
+        bottom: 0;
         height: 150px;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
     }
 
     #joystick-container {
+        bottom: 160px; /* Position above chat */
         left: 20px;
         right: auto;
         width: 120px;

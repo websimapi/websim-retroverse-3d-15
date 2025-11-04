@@ -8,9 +8,18 @@ const hostViewEl = document.getElementById('host-view');
 const playerViewEl = document.getElementById('player-view');
 const dataDisplayEl = document.getElementById('data-display');
 const uiContainerEl = document.getElementById('ui-container');
+const uiToggleBtn = document.getElementById('ui-toggle-btn');
 const chatMessagesEl = document.getElementById('chat-messages');
 const chatFormEl = document.getElementById('chat-form');
 const chatInputEl = document.getElementById('chat-input');
+
+function toggleUI() {
+    if (uiContainerEl.style.display === 'block') {
+        uiContainerEl.style.display = 'none';
+    } else {
+        uiContainerEl.style.display = 'block';
+    }
+}
 
 function displayChatMessage(username, message, isValidated) {
     const messageEl = document.createElement('div');
@@ -92,7 +101,7 @@ async function main() {
 
         if (isHost) {
             roleEl.textContent = `Role: HOST (${currentUser.username})`;
-            uiContainerEl.style.display = 'block'; // Show for host
+            // uiContainerEl.style.display = 'block'; // Show for host - now controlled by toggle
             hostViewEl.style.display = 'block';
             playerViewEl.style.display = 'none'; // Hide player view for host
             initHost(room, dataDisplayEl);
@@ -100,17 +109,14 @@ async function main() {
             roleEl.textContent = `Role: PLAYER (${currentUser.username})`;
             hostViewEl.style.display = 'none'; // Hide host view for player
             playerViewEl.style.display = 'block';
-            uiContainerEl.style.display = 'block'; // Also show UI for players
+            // uiContainerEl.style.display = 'block'; // Also show UI for players - now controlled by toggle
             initPlayer(room, creator.username);
         }
 
+        uiToggleBtn.addEventListener('click', toggleUI);
         window.addEventListener('keydown', (event) => {
             if (event.key === '`' || event.key === '~') {
-                if (uiContainerEl.style.display === 'block') {
-                    uiContainerEl.style.display = 'none';
-                } else {
-                    uiContainerEl.style.display = 'block';
-                }
+                toggleUI();
             }
         });
 
